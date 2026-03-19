@@ -53,6 +53,28 @@ async def get_edificios():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
+@router.get("/edificios/{id_building}")
+async def get_edificio_by_id(id_building: int):
+    try:
+        supabase = get_supabase_client()
+
+        response = supabase.table("edificios").select("*").eq("id_building", id_building).single().execute()
+
+        if not response.data:
+            raise HTTPException(status_code=404, detail="Edificio no encontrado")
+
+        edificio = response.data
+
+        return {
+            "id_building": edificio["id_building"],
+            "name_building": edificio["name_building"],
+            "lat_building": float(edificio["lat_building"]) if edificio.get("lat_building") else None,
+            "lon_building": float(edificio["lon_building"]) if edificio.get("lon_building") else None,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 @router.post("/edificios")
 async def create_edificio(data: EdificioCreate):
     try:
