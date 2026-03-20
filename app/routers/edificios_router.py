@@ -23,6 +23,9 @@ class EdificioUpdate(BaseModel):
     lon_building: Optional[float] = None
     id_div: Optional[int] = None
 
+class BusquedaEdificio(BaseModel):
+    query: str
+
 @router.get("/edificios")
 async def get_edificios():
     try:
@@ -33,7 +36,6 @@ async def get_edificios():
             divisiones(name_div)
         """).order("id_building").execute()
         
-        # Transformar para incluir name_div al mismo nivel
         data = []
         for row in response.data:
             edificio = {
@@ -52,6 +54,44 @@ async def get_edificios():
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@router.get("/edificios/top/buscado")
+async def get_edificio_mas_buscado():
+    try:
+        supabase = get_supabase_client()
+
+        logs = supabase.table("building_searches") \
+            .select("id_building") \
+            .execute().data
+
+        if not logs:
+            raise HTTPException(status_code=404, detail="Sin búsquedas registradas")
+
+        conteo = {}
+        for log in logs:
+            id_b = log["id_building"]
+            conteo[id_b] = conteo.get(id_b, 0) + 1
+
+        top_id = max(conteo, key=conteo.get)
+
+        edificio = supabase.table("edificios") \
+            .select("name_building, imagen_url") \
+            .eq("id_building", top_id) \
+            .single().execute().data
+
+        return {
+            "id_building": top_id,
+            "name_building": edificio["name_building"],
+            "imagen_url": edificio.get("imagen_url"),
+            "veces_buscado": conteo[top_id]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 
 @router.get("/edificios/{id_building}")
 async def get_edificio_by_id(id_building: int):
@@ -75,6 +115,7 @@ async def get_edificio_by_id(id_building: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
+
 @router.post("/edificios")
 async def create_edificio(data: EdificioCreate):
     try:
@@ -92,6 +133,34 @@ async def create_edificio(data: EdificioCreate):
         return {"success": True, "id_building": response.data[0]["id_building"] if response.data else None}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@router.post("/edificios/buscar")
+async def registrar_busqueda(data: BusquedaEdificio):
+    try:
+        supabase = get_supabase_client()
+
+        resultado = supabase.table("edificios") \
+            .select("id_building, name_building") \
+            .ilike("name_building", f"%{data.query}%") \
+            .limit(1).execute().data
+
+        if not resultado:
+            raise HTTPException(status_code=404, detail="Edificio no encontrado")
+
+        edificio = resultado[0]
+
+        supabase.table("building_searches").insert({
+            "id_building": edificio["id_building"]
+        }).execute()
+
+        return {"success": True, "edificio": edificio["name_building"]}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 
 @router.put("/edificios/{id_building}")
 async def update_edificio(id_building: int, data: EdificioUpdate):
@@ -120,6 +189,7 @@ async def update_edificio(id_building: int, data: EdificioUpdate):
         return {"success": True}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 
 @router.delete("/edificios/{id_building}")
 async def delete_edificio(id_building: int):
