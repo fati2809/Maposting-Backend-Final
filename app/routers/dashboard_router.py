@@ -60,16 +60,26 @@ async def get_grafica(periodo: str = "semana"):
                     label = dt.strftime("%d/%m")
                 eventos_dict[label] = eventos_dict.get(label, 0) + 1
 
-        eventos = [{"label": k, "eventos": v} for k, v in eventos_dict.items()]
+        # Ordenar por fecha
+        if periodo_limpio == "dia":
+            eventos_sorted = sorted(eventos_dict.items(), key=lambda x: x[0])
+        elif periodo_limpio == "semana":
+            dias_orden = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            eventos_sorted = sorted(eventos_dict.items(), key=lambda x: dias_orden.index(x[0]) if x[0] in dias_orden else 99)
+        else:
+            eventos_sorted = sorted(eventos_dict.items(), key=lambda x: datetime.strptime(x[0], "%d/%m"))
+
+        eventos = [{"label": k, "eventos": v} for k, v in eventos_sorted]
 
         return {
             "periodo": periodo_limpio,
             "eventos": eventos,
-            "usuarios": [],  # tabla usuarios no tiene fecha de registro
+            "usuarios": [],
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
 
 @router.get("/dashboard/reporte")
 async def get_reporte():
