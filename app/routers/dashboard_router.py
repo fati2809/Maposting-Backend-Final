@@ -28,16 +28,15 @@ async def get_stats():
 async def get_grafica(periodo: str = "semana"):
     try:
         supabase = get_supabase_client()
-        now = datetime.now(timezone.utc)  # ✅ con UTC
+        now = datetime.now(timezone.utc)
 
-        # Limpiar parámetro por si viene "semana:1" desde el frontend
         periodo_limpio = periodo.split(":")[0]
 
         if periodo_limpio == "dia":
             fecha_inicio = now - timedelta(hours=24)
         elif periodo_limpio == "semana":
             fecha_inicio = now - timedelta(days=7)
-        else:  # mes
+        else:
             fecha_inicio = now - timedelta(days=30)
 
         # Obtener eventos
@@ -45,14 +44,6 @@ async def get_grafica(periodo: str = "semana"):
             supabase.table("eventos")
             .select("timedate_event")
             .gte("timedate_event", fecha_inicio.isoformat())
-            .execute()
-        )
-
-        # Obtener usuarios
-        usuarios_response = (
-            supabase.table("usuarios")
-            .select("created_at")
-            .gte("created_at", fecha_inicio.isoformat())
             .execute()
         )
 
@@ -69,26 +60,12 @@ async def get_grafica(periodo: str = "semana"):
                     label = dt.strftime("%d/%m")
                 eventos_dict[label] = eventos_dict.get(label, 0) + 1
 
-        # Procesar usuarios
-        usuarios_dict = {}
-        for usuario in usuarios_response.data:
-            if usuario.get("created_at"):
-                dt = datetime.fromisoformat(usuario["created_at"].replace("Z", "+00:00"))
-                if periodo_limpio == "dia":
-                    label = dt.strftime("%H:00")
-                elif periodo_limpio == "semana":
-                    label = dt.strftime("%a")
-                else:
-                    label = dt.strftime("%d/%m")
-                usuarios_dict[label] = usuarios_dict.get(label, 0) + 1
-
         eventos = [{"label": k, "eventos": v} for k, v in eventos_dict.items()]
-        usuarios = [{"label": k, "usuarios": v} for k, v in usuarios_dict.items()]
 
         return {
             "periodo": periodo_limpio,
             "eventos": eventos,
-            "usuarios": usuarios,
+            "usuarios": [],  # tabla usuarios no tiene fecha de registro
         }
 
     except Exception as e:
