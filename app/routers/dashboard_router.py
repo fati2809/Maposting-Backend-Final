@@ -104,7 +104,7 @@ async def get_reporte():
         # Obtener eventos con relaciones
         eventos_response = supabase.table("eventos").select("""
             name_event, timedate_event, status_event, id_building, id_profe,
-            edificios(name_building),
+            edificios!eventos_id_building_fkey(name_building),
             profesor(nombre_profe)
         """).order("timedate_event", desc=True).execute()
         
