@@ -39,7 +39,6 @@ async def get_grafica(periodo: str = "semana"):
         else:
             fecha_inicio = now - timedelta(days=30)
 
-        # Obtener eventos
         eventos_response = (
             supabase.table("eventos")
             .select("timedate_event")
@@ -47,7 +46,6 @@ async def get_grafica(periodo: str = "semana"):
             .execute()
         )
 
-        # Procesar eventos
         eventos_dict = {}
         for evento in eventos_response.data:
             if evento.get("timedate_event"):
@@ -60,16 +58,24 @@ async def get_grafica(periodo: str = "semana"):
                     label = dt.strftime("%d/%m")
                 eventos_dict[label] = eventos_dict.get(label, 0) + 1
 
-        # Ordenar por fecha
-        if periodo_limpio == "dia":
-            eventos_sorted = sorted(eventos_dict.items(), key=lambda x: x[0])
-        elif periodo_limpio == "semana":
-            dias_orden = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-            eventos_sorted = sorted(eventos_dict.items(), key=lambda x: dias_orden.index(x[0]) if x[0] in dias_orden else 99)
-        else:
-            eventos_sorted = sorted(eventos_dict.items(), key=lambda x: datetime.strptime(x[0], "%d/%m"))
+        labels_completos = {}
 
-        eventos = [{"label": k, "eventos": v} for k, v in eventos_sorted]
+        if periodo_limpio == "dia":
+            for i in range(24):
+                hora = (fecha_inicio + timedelta(hours=i)).strftime("%H:00")
+                labels_completos[hora] = eventos_dict.get(hora, 0)
+
+        elif periodo_limpio == "semana":
+            for i in range(7):
+                dia = (fecha_inicio + timedelta(days=i)).strftime("%a")
+                labels_completos[dia] = eventos_dict.get(dia, 0)
+
+        else:  
+            for i in range(30):
+                dia = (fecha_inicio + timedelta(days=i)).strftime("%d/%m")
+                labels_completos[dia] = eventos_dict.get(dia, 0)
+
+        eventos = [{"label": k, "eventos": v} for k, v in labels_completos.items()]
 
         return {
             "periodo": periodo_limpio,
