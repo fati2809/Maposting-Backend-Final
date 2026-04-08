@@ -1,9 +1,11 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from pydantic import BaseModel
+from typing import Optional
 
 from app.models.models import LoginRequest, RegisterRequest, LoginResponse, UserResponse
-from db_supabase import get_supabase_client
+from app.config import get_supabase_client  # ← corregido
 from eventos_router import router as eventos_router
 from usuarios_router import router as usuarios_router
 from dashboard_router import router as dashboard_router
@@ -32,6 +34,29 @@ app.add_middleware(
 )
 
 # ============================
+# MODELOS OAUTH
+# ============================
+class OAuthSyncRequest(BaseModel):
+    id_user: str
+    email_user: str
+    name_user: str
+    provider: Optional[str] = "google"
+
+class OAuthUserResponse(BaseModel):
+    id_user: str
+    name_user: str
+    email_user: str
+    matricula_user: Optional[int] = None
+    id_rol: int
+    rol: str
+
+class OAuthSyncResponse(BaseModel):
+    success: bool
+    message: str
+    user: OAuthUserResponse
+
+
+# ============================
 # STARTUP EVENT
 # ============================
 @app.on_event("startup")
@@ -52,8 +77,7 @@ async def startup_event():
 
 
 # ============================
-# TEST — para verificar que el servidor responde
-# Abre: http://localhost:8000/test
+# TEST
 # ============================
 @app.get("/test")
 async def test():
@@ -61,8 +85,7 @@ async def test():
 
 
 # ============================
-# TEST SUPABASE — verifica que la DB responde
-# Abre: http://localhost:8000/test-db
+# TEST SUPABASE
 # ============================
 @app.get("/test-db")
 async def test_db():
@@ -100,10 +123,10 @@ async def login(credentials: LoginRequest):
             success=True,
             message="Login exitoso",
             user=UserResponse(
-                id_user=user["id_user"],
+                id_user=str(user["id_user"]),
                 name_user=user["name_user"],
                 email_user=user["email_user"],
-                matricula_user=user["matricula_user"],
+                matricula_user=user.get("matricula_user"),
                 id_rol=user["id_rol"],
                 rol=user["rol"]["name_rol"] if isinstance(user.get("rol"), dict) else ""
             )
@@ -146,6 +169,81 @@ async def register(user_data: RegisterRequest):
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
+# ============================
+# AUTH OAUTH SYNC
+# ============================
+@app.post("/auth/oauth/sync", response_model=OAuthSyncResponse)
+async def oauth_sync(data: OAuthSyncRequest):
+    try:
+        supabase = get_supabase_client()
+
+        # Buscar si el usuario ya existe por email
+        response = supabase.table("usuarios").select("""
+            id_user, name_user, email_user,
+            matricula_user, id_rol,
+            rol!inner(name_rol)
+        """).eq("email_user", data.email_user).execute()
+
+        if response.data:
+            user = response.data[0]
+            return OAuthSyncResponse(
+                success=True,
+                message="Usuario autenticado correctamente",
+                user=OAuthUserResponse(
+                    id_user=str(user["id_user"]),
+                    name_user=user["name_user"],
+                    email_user=user["email_user"],
+                    matricula_user=user.get("matricula_user"),
+                    id_rol=user["id_rol"],
+                    rol=user["rol"]["name_rol"] if isinstance(user.get("rol"), dict) else ""
+                )
+            )
+
+        # Usuario nuevo — obtener id del rol 'usuario' por defecto
+        rol_response = supabase.table("rol").select("id_rol").eq("name_rol", "usuario").single().execute()
+        if not rol_response.data:
+            raise HTTPException(status_code=500, detail="Rol 'usuario' no encontrado en la BD")
+
+        id_rol_default = rol_response.data["id_rol"]
+
+        # Insertar nuevo usuario
+        insert_response = supabase.table("usuarios").insert({
+            "id_user": data.id_user,
+            "name_user": data.name_user,
+            "email_user": data.email_user,
+            "id_rol": id_rol_default
+        }).execute()
+
+        if not insert_response.data:
+            raise HTTPException(status_code=500, detail="Error al crear el usuario")
+
+        # Devolver el usuario recién creado con su rol
+        new_user = supabase.table("usuarios").select("""
+            id_user, name_user, email_user,
+            matricula_user, id_rol,
+            rol!inner(name_rol)
+        """).eq("email_user", data.email_user).single().execute()
+
+        user = new_user.data
+        return OAuthSyncResponse(
+            success=True,
+            message="Usuario creado correctamente",
+            user=OAuthUserResponse(
+                id_user=str(user["id_user"]),
+                name_user=user["name_user"],
+                email_user=user["email_user"],
+                matricula_user=user.get("matricula_user"),
+                id_rol=user["id_rol"],
+                rol=user["rol"]["name_rol"] if isinstance(user.get("rol"), dict) else ""
+            )
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en OAuth sync: {str(e)}")
+
+
 # ================================================
 # ROUTERS
 # ================================================
@@ -154,6 +252,7 @@ app.include_router(usuarios_router)
 app.include_router(dashboard_router)
 app.include_router(edificios_router)
 app.include_router(divisiones_router)
+
 
 # ================================================
 # OPTIONS catch-all — SIEMPRE al final
