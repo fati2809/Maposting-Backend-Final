@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
-from app.models.models import LoginRequest, RegisterRequest, LoginResponse, UserResponse, ResetPasswordRequest, OAuthSyncRequest
+from app.models.models import LoginRequest, RegisterRequest, LoginResponse, UserResponse, ResetPasswordRequest, OAuthSyncRequest, GoogleLoginRequest
 from app.config import get_supabase_client
 from app.services.auth_service import AuthService
 from app.routers.eventos_router import router as eventos_router
@@ -87,6 +87,42 @@ async def login(credentials: LoginRequest):
         return LoginResponse(
             success=True,
             message="Login exitoso",
+            user=UserResponse(
+                id_user=user_data["id_user"],
+                name_user=user_data["name_user"],
+                email_user=user_data["email_user"],
+                matricula_user=user_data.get("matricula_user"),
+                id_rol=user_data["id_rol"],
+                rol=user_data["rol"]
+            ),
+            session={
+                "access_token": result["session"].access_token,
+                "refresh_token": result["session"].refresh_token,
+                "expires_at": result["session"].expires_at
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# ============================
+# 4.1 LOGIN WITH GOOGLE
+# ============================
+@app.post("/login/google", response_model=LoginResponse)
+async def login_google(data: GoogleLoginRequest):
+    """Login/registro con Google ID Token"""
+    try:
+        result = await AuthService.sign_in_with_google_token(
+            id_token=data.id_token,
+            email=data.email,
+            name=data.name,
+            photo=data.photo
+        )
+        user_data = result["user_data"]
+        return LoginResponse(
+            success=True,
+            message="Login con Google exitoso",
             user=UserResponse(
                 id_user=user_data["id_user"],
                 name_user=user_data["name_user"],

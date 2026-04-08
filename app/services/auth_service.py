@@ -297,3 +297,99 @@ class AuthService:
                 status_code=500,
                 detail=f"Error al sincronizar usuario OAuth: {str(e)}"
             )
+    
+    @staticmethod
+    async def sign_in_with_google_token(id_token: str, email: str, name: str = None, photo: str = None) -> dict:
+        """
+        Autentica un usuario con Google ID Token usando Supabase Auth.
+        Si el usuario no existe en la tabla usuarios, lo crea automáticamente.
+        
+        Args:
+            id_token: Token de Google (JWT)
+            email: Email del usuario de Google
+            name: Nombre del usuario de Google
+            photo: URL de la foto del usuario
+        
+        Returns:
+            Dict con user_data y session
+        """
+        try:
+            supabase = get_supabase_client()
+            
+            # 1. Autenticar con Supabase usando el Google ID token
+            response = supabase.auth.sign_in_with_id_token({
+                "provider": "google",
+                "token": id_token,
+            })
+            
+            if response.user is None:
+                raise HTTPException(
+                    status_code=401,
+                    detail="No se pudo autenticar con Google"
+                )
+            
+            auth_user = response.user
+            session = response.session
+            
+            # 2. Buscar o crear el usuario en la tabla usuarios
+            user_response = supabase.table("usuarios").select("""
+                id_user, name_user, email_user, matricula_user, id_rol,
+                rol!inner(name_rol)
+            """).eq("id_user", auth_user.id).execute()
+            
+            if user_response.data and len(user_response.data) > 0:
+                # Usuario ya existe
+                user_data = user_response.data[0]
+            else:
+                # Usuario nuevo — crear en tabla usuarios
+                display_name = name or email.split("@")[0]
+                new_user = {
+                    "id_user": auth_user.id,
+                    "name_user": display_name,
+                    "email_user": email,
+                    "matricula_user": None,
+                    "id_rol": 2  # Estudiante por defecto
+                }
+                
+                insert_response = supabase.table("usuarios").insert(new_user).execute()
+                
+                if not insert_response.data:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Error al crear usuario en la base de datos"
+                    )
+                
+                # Re-obtener con join de rol
+                user_response = supabase.table("usuarios").select("""
+                    id_user, name_user, email_user, matricula_user, id_rol,
+                    rol!inner(name_rol)
+                """).eq("id_user", auth_user.id).execute()
+                
+                if not user_response.data:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Error al obtener datos del usuario creado"
+                    )
+                
+                user_data = user_response.data[0]
+            
+            return {
+                "user": auth_user,
+                "session": session,
+                "user_data": {
+                    "id_user": user_data["id_user"],
+                    "name_user": user_data["name_user"],
+                    "email_user": user_data["email_user"],
+                    "matricula_user": user_data.get("matricula_user"),
+                    "id_rol": user_data["id_rol"],
+                    "rol": user_data["rol"]["name_rol"] if isinstance(user_data.get("rol"), dict) else ""
+                }
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=401,
+                detail=f"Error al autenticar con Google: {str(e)}"
+            )

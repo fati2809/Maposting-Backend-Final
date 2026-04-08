@@ -58,7 +58,7 @@ class RegisterRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id_user: int
+    id_user: str  # UUID de Supabase Auth
     name_user: str
     email_user: str
     matricula_user: Optional[int]
@@ -152,3 +152,9 @@ class OAuthSyncResponse(BaseModel):
     success: bool
     message: str
     user: Optional[dict] = None
+
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+    email: EmailStr
+    name: Optional[str] = None
+    photo: Optional[str] = None
