@@ -17,6 +17,7 @@ from app.utils.security import (
     hash_password,
     validate_password
 )
+from app.services.auth_service import AuthService
 
 app = FastAPI()
 
@@ -36,6 +37,12 @@ app.add_middleware(
 # ============================
 # MODELOS OAUTH
 # ============================
+class GoogleLoginRequest(BaseModel):
+    id_token: str
+    email: str
+    name: Optional[str] = None
+    photo: Optional[str] = None
+
 class OAuthSyncRequest(BaseModel):
     id_user: str
     email_user: str
@@ -242,6 +249,43 @@ async def oauth_sync(data: OAuthSyncRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error en OAuth sync: {str(e)}")
+
+
+# ============================
+# LOGIN WITH GOOGLE
+# ============================
+@app.post("/login/google", response_model=LoginResponse)
+async def login_google(data: GoogleLoginRequest):
+    try:
+        result = await AuthService.sign_in_with_google_token(
+            id_token=data.id_token,
+            email=data.email,
+            name=data.name,
+            photo=data.photo,
+        )
+        user_data = result["user_data"]
+        session = result["session"]
+        return LoginResponse(
+            success=True,
+            message="Login con Google exitoso",
+            user=UserResponse(
+                id_user=str(user_data["id_user"]),
+                name_user=user_data["name_user"],
+                email_user=user_data["email_user"],
+                matricula_user=user_data.get("matricula_user"),
+                id_rol=user_data["id_rol"],
+                rol=user_data["rol"],
+            ),
+            session={
+                "access_token": session.access_token,
+                "refresh_token": session.refresh_token,
+                "expires_at": session.expires_at,
+            },
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
 
 
 # ================================================
