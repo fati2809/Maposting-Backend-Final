@@ -111,6 +111,7 @@ jobs:
             -o ProxyJump=${{ secrets.GCP_USER }}@${{ secrets.BASTION_IP }} \
             ${{ secrets.GCP_USER }}@${{ secrets.DOCKER_SERVER_IP }} \
             "
+              echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u fati2809 --password-stdin &&
               docker pull ghcr.io/fati2809/maposting-backend:latest &&
               docker stop maposting-backend || true &&
               docker rm maposting-backend || true &&
