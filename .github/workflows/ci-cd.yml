@@ -97,9 +97,17 @@ jobs:
           echo "${{ secrets.GCP_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.BASTION_IP }} >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            ${{ secrets.GCP_USER }}@${{ secrets.BASTION_IP }} \
+            "ssh-keyscan -H ${{ secrets.DOCKER_SERVER_IP }}" >> ~/.ssh/known_hosts || true
+
       - name: Deploy en docker-server via bastion
         run: |
           ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
             -o ProxyJump=${{ secrets.GCP_USER }}@${{ secrets.BASTION_IP }} \
             ${{ secrets.GCP_USER }}@${{ secrets.DOCKER_SERVER_IP }} \
             "
@@ -114,10 +122,13 @@ jobs:
                 -e SUPABASE_KEY=${{ secrets.SUPABASE_KEY }} \
                 ghcr.io/fati2809/maposting-backend:latest
             "
+
       - name: Verificar deploy
         run: |
           sleep 5
           ssh -i ~/.ssh/id_rsa \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
             -o ProxyJump=${{ secrets.GCP_USER }}@${{ secrets.BASTION_IP }} \
             ${{ secrets.GCP_USER }}@${{ secrets.DOCKER_SERVER_IP }} \
             "docker ps | grep maposting-backend"
