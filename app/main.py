@@ -1,6 +1,8 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from prometheus_fastapi_instrumentator import Instrumentator
+
 
 from app.models.models import LoginRequest, RegisterRequest, LoginResponse, UserResponse, ResetPasswordRequest, OAuthSyncRequest, GoogleLoginRequest
 from app.config import get_supabase_client
@@ -16,6 +18,7 @@ from app.routers.aulas_router import router as aulas_router
 from app.routers.profesores_router import router as profesores_router
 
 app = FastAPI()
+Instrumentator().instrument(app).expose(app)
 
 # ================================================
 # 1. CORS — SIEMPRE primero, antes de todo
