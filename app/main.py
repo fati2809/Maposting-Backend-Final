@@ -51,6 +51,20 @@ async def startup_event():
         print(f"Error al conectar con Supabase: {str(e)}")
         print("Verifica tu archivo .env")
         print("="*50 + "\n")
+# ============================
+# HEALTH CHECK (CRÍTICO PARA RENDER)
+# ============================
+@app.get("/")
+async def root():
+    print("🔥 ROOT HIT")  # para verificar en logs
+    return {
+        "status": "ok",
+        "message": "API funcionando correctamente"
+    }
+
+@app.head("/")
+async def head_root():
+    return Response(status_code=200)
 
 # ============================
 # 3. TEST endpoints (para debug)
