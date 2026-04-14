@@ -24,6 +24,8 @@ def enviar_invitacion(
     fecha_inicio: datetime,
     fecha_fin: datetime,
 ) -> bool:
+     print("📨 Intentando enviar correo...")
+    
     if not SMTP_USER or not SMTP_PASSWORD:
         print("⚠️  SMTP no configurado, omitiendo envío de email")
         return False
