@@ -30,7 +30,21 @@ def enviar_invitacion(
         print("⚠️  SMTP no configurado, omitiendo envío de email")
         return False
     try:
-        ical = f"""BEGIN:VCALENDAR\r
+        print("🔐 Conectando a SMTP...")
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+
+            print("🔑 Haciendo login...")
+            server.login(SMTP_USER, SMTP_PASSWORD)
+
+            print("✅ Login SMTP exitoso")
+            print("📤 Enviando email...")
+
+            server.sendmail(SMTP_USER, email_destino, msg.as_string())
+
+        print(f"✅ Email enviado a {email_destino}")
+        return True
 VERSION:2.0\r
 PRODID:-//SistemaEventos//ES\r
 METHOD:REQUEST\r
