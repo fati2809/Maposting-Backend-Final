@@ -82,7 +82,19 @@ async def startup_event():
         print("Verifica tu archivo .env")
         print("="*50 + "\n")
 
+# ============================
+# HEALTH CHECK
+# ============================
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "message": "API funcionando correctamente"
+    }
 
+@app.head("/")
+async def head_root():
+    return Response(status_code=200)
 # ============================
 # TEST
 # ============================
