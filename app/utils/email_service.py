@@ -1,6 +1,7 @@
 import requests
-import uuid
 import os
+import base64
+import uuid
 from datetime import datetime
 
 
@@ -18,7 +19,7 @@ def enviar_invitacion(
     fecha_fin: datetime,
 ) -> bool:
 
-    print("📨 Enviando correo con Resend...")
+    print("📨 Enviando correo con SendGrid...")
 
     try:
         # ============================
@@ -36,62 +37,75 @@ DTEND:{fmt_ical(fecha_fin)}
 SUMMARY:{nombre_evento}
 DESCRIPTION:{descripcion or 'Sin descripcion'}
 LOCATION:{nombre_edificio}
-ORGANIZER:mailto:events@tudominio.com
+ORGANIZER:mailto:lopez.uribe.fatima@gmail.com
 ATTENDEE:mailto:{email_destino}
 END:VEVENT
 END:VCALENDAR
 """
 
+        ical_base64 = base64.b64encode(ical.encode()).decode()
+
         # ============================
-        # 📨 HTML bonito
+        # 📨 HTML
         # ============================
         html = f"""
-        <div style="font-family:sans-serif;max-width:520px;margin:auto;
-                    border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
-          <div style="background:#6433b4;padding:24px 28px">
-            <h2 style="color:#fff;margin:0">📅 {nombre_evento}</h2>
-          </div>
-          <div style="padding:24px 28px">
-            <p>Hola <strong>{nombre_profe}</strong>,</p>
-            <p>Has sido asignado a un nuevo evento.</p>
-            <p><b>📍 Lugar:</b> {nombre_edificio}</p>
-            <p><b>🕐 Inicio:</b> {fecha_inicio.strftime('%d/%m/%Y %H:%M')}</p>
-            <p><b>🕐 Fin:</b> {fecha_fin.strftime('%d/%m/%Y %H:%M')}</p>
-            <p>{descripcion or 'Sin descripción'}</p>
-          </div>
+        <div style="font-family:sans-serif">
+            <h2>📅 {nombre_evento}</h2>
+            <p>Hola <b>{nombre_profe}</b>,</p>
+            <p>Tienes un nuevo evento asignado:</p>
+            <ul>
+                <li><b>📍 Lugar:</b> {nombre_edificio}</li>
+                <li><b>🕐 Inicio:</b> {fecha_inicio.strftime('%d/%m/%Y %H:%M')}</li>
+                <li><b>🕐 Fin:</b> {fecha_fin.strftime('%d/%m/%Y %H:%M')}</li>
+                <li><b>📝 Descripción:</b> {descripcion or 'Sin descripción'}</li>
+            </ul>
+            <p>📎 Se adjunta invitación (.ics)</p>
         </div>
         """
 
         # ============================
-        # 🚀 ENVÍO CON RESEND
+        # 🚀 SENDGRID REQUEST
         # ============================
         response = requests.post(
-            "https://api.resend.com/emails",
+            "https://api.sendgrid.com/v3/mail/send",
             headers={
-                "Authorization": f"Bearer {os.getenv('RESEND_API_KEY')}",
-                "Content-Type": "application/json",
+                "Authorization": f"Bearer {os.getenv('SENDGRID_API_KEY')}",
+                "Content-Type": "application/json"
             },
             json={
-                "from": "onboarding@resend.dev",  # luego puedes cambiarlo
-                "to": [email_destino],
+                "personalizations": [
+                    {
+                        "to": [{"email": email_destino}]
+                    }
+                ],
+                "from": {
+                    "email": "lopez.uribe.fatima@gmail.com"  # ⚠️ debe ser el verificado
+                },
                 "subject": f"📅 Invitación: {nombre_evento}",
-                "html": html,
+                "content": [
+                    {
+                        "type": "text/html",
+                        "value": html
+                    }
+                ],
                 "attachments": [
                     {
-                        "filename": "invitacion.ics",
-                        "content": ical
+                        "content": ical_base64,
+                        "type": "text/calendar",
+                        "filename": "invitacion.ics"
                     }
                 ]
             }
         )
 
-        print("📬 Respuesta:", response.json())
+        print("STATUS:", response.status_code)
+        print("BODY:", response.text)
 
-        if response.status_code in [200, 201]:
+        if response.status_code in [200, 202]:
             print(f"✅ Email enviado a {email_destino}")
             return True
         else:
-            print("❌ Error en Resend:", response.text)
+            print("❌ Error:", response.text)
             return False
 
     except Exception as e:
